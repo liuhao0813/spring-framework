@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,6 @@ import org.springframework.util.Assert;
  * @since 5.0
  * @see org.springframework.web.server.adapter.AbstractReactiveWebInitializer
  */
-@SuppressWarnings("serial")
 public class ServletHttpHandlerAdapter implements Servlet {
 
 	private static final Log logger = HttpLogging.forLogName(ServletHttpHandlerAdapter.class);
@@ -72,7 +71,7 @@ public class ServletHttpHandlerAdapter implements Servlet {
 	@Nullable
 	private String servletPath;
 
-	private DataBufferFactory dataBufferFactory = new DefaultDataBufferFactory(false);
+	private DataBufferFactory dataBufferFactory = DefaultDataBufferFactory.sharedInstance;
 
 
 	public ServletHttpHandlerAdapter(HttpHandler httpHandler) {
@@ -240,15 +239,24 @@ public class ServletHttpHandlerAdapter implements Servlet {
 	}
 
 
+	/**
+	 * AsyncListener to complete the {@link AsyncContext} in case of error or
+	 * timeout notifications from the container
+	 * <p>Additional {@link AsyncListener}s are registered in
+	 * {@link ServletServerHttpRequest} to signal onError/onComplete to the
+	 * request body Subscriber, and in {@link ServletServerHttpResponse} to
+	 * cancel the write Publisher and signal onError/onComplete downstream to
+	 * the writing result Subscriber.
+	 */
 	private static class HandlerResultAsyncListener implements AsyncListener {
 
 		private final AtomicBoolean isCompleted;
 
 		private final String logPrefix;
 
-		public HandlerResultAsyncListener(AtomicBoolean isCompleted, ServletServerHttpRequest httpRequest) {
+		public HandlerResultAsyncListener(AtomicBoolean isCompleted, ServletServerHttpRequest request) {
 			this.isCompleted = isCompleted;
-			this.logPrefix = httpRequest.getLogPrefix();
+			this.logPrefix = request.getLogPrefix();
 		}
 
 		@Override
@@ -278,7 +286,7 @@ public class ServletHttpHandlerAdapter implements Servlet {
 	}
 
 
-	private class HandlerResultSubscriber implements Subscriber<Void> {
+	private static class HandlerResultSubscriber implements Subscriber<Void> {
 
 		private final AsyncContext asyncContext;
 
